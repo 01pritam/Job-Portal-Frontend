@@ -8,7 +8,7 @@ const SignUp = () => {
         email: '',
         password: '',
         confirmPassword: '',
-        role: '', // backend expects "role"
+        role: '', 
         agreeToTerms: false
     });
     const [error, setError] = useState('');
@@ -37,12 +37,11 @@ const SignUp = () => {
         }
         setIsLoading(true);
 
-        // Prepare payload for backend
         const payload = {
             username: formData.username,
             email: formData.email,
             password: formData.password,
-            role: formData.role // should be "employer", "admin", or "job_seeker"
+            role: formData.role 
         };
 
         const result = await registerUser(payload);

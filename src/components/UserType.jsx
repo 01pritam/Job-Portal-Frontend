@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useUser } from '../context/UserContext'; // import custom hook
+import { useUser } from '../context/UserContext'; 
 
 const UserType = () => {
   const [selectedType, setSelectedType] = useState('');
   const navigate = useNavigate();
-  const { setUserType } = useUser(); // get setter
+  const { setUserType } = useUser();
 
   const handleSelection = (type) => {
     setSelectedType(type);
@@ -13,7 +13,7 @@ const UserType = () => {
 
   const handleProceed = () => {
     if (selectedType) {
-      setUserType(selectedType); // ✅ store it globally before navigating
+      setUserType(selectedType); 
       navigate('/login');
     }
   };
@@ -28,7 +28,7 @@ const UserType = () => {
                 </p>
                 
                 <div className="grid grid-cols-1 gap-4 mt-6">
-                    {['Admin', 'Employer', 'Jobseeker'].map((type) => (
+                    {['Admin', 'Employer', 'Job_seeker'].map((type) => (
                         <button
                             key={type}
                             onClick={() => handleSelection(type)}

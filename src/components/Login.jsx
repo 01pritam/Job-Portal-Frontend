@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';  // Use useNavigate instead of useHistory
 import { useAuth } from '../context/AuthContext';
-import { useUser } from '../context/UserContext'; // ✅ Import UserType context
-
+import {useUser} from '../context/UserContext'
 const Login = () => {
     const [formData, setFormData] = useState({
         email: '',
@@ -11,8 +10,9 @@ const Login = () => {
     });
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const { loginUser } = useAuth();
-    const { userType } = useUser(); // ✅ Get selected user type
+    const { loginUser, userRole, completeProfile } = useAuth();
+    const {userType}=useUser(); // Use userRole and completeProfile from useAuth
+    const navigate = useNavigate(); // Replace useHistory with useNavigate
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -30,12 +30,21 @@ const Login = () => {
         const result = await loginUser({
             email: formData.email,
             password: formData.password,
-            role: userType ? userType.toLowerCase() : 'jobseeker' // ✅ Use selected user type
+            role: userType.toLowerCase() // Use selected user role
         });
 
-        if (!result.success) {
-            setError(result.error || 'Login failed');
-        }
+        // if (!result.success) {
+        //     setError(result.error || 'Login failed');
+        // } else {
+        //     // Check if profile is complete, then navigate accordingly
+        //     if (completeProfile) {
+        //         navigate('/'); // Redirect to home page
+        //     } else {
+        //         // Navigate to profile page based on user role
+        //         const profilePath = userRole === 'jobseeker' ? '/jobseeker/profile' : '/employer/profile';
+        //         navigate(profilePath);  // Use navigate instead of history.push
+        //     }
+        // }
         setIsLoading(false);
     };
 
@@ -46,10 +55,10 @@ const Login = () => {
                     <h2 className="text-3xl font-bold text-gray-900">Welcome Back</h2>
                     <p className="mt-2 text-gray-600">Please sign in to your account</p>
 
-                    {/* ✅ Show logged-in user type */}
-                    {userType && (
+                    {/* Show logged-in user role */}
+                    {userRole && (
                         <p className="mt-2 text-blue-600 font-semibold text-sm">
-                            Logging in as <span className="capitalize">{userType}</span>
+                            Logging in as <span className="capitalize">{userRole}</span>
                         </p>
                     )}
                 </div>
