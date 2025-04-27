@@ -5,7 +5,6 @@ const CompanyProfile = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate API call with dummy data
     setTimeout(() => {
       setProfile({
         companyName: 'Acme Corp',
