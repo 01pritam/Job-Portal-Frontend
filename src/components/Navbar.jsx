@@ -23,19 +23,19 @@ const Navbar = () => {
           {token && userRole === 'job_seeker' && (
             <>
             <Link to="/jobseeker/jobs" className="hover:text-blue-300 transition-colors duration-200">Jobs</Link>
-              <Link to="/jobseeker/profile" className="hover:text-blue-300 transition-colors duration-200">Profile</Link>
               <Link to="/jobseeker/applications-status" className="hover:text-blue-300 transition-colors duration-200">Applications</Link>
-              <Link to="/jobseeker/resume" className="hover:text-blue-300 transition-colors duration-200">My Resume</Link>
+              <Link to="/jobseeker/profile" className="hover:text-blue-300 transition-colors duration-200">Profile</Link>
+              {/* <Link to="/jobseeker/resume" className="hover:text-blue-300 transition-colors duration-200">My Resume</Link> */}
             </>
           )}
 
           {/* Employer Links */}
           {token && userRole === 'employer' && (
             <>
-              <Link to="/employer/profile" className="hover:text-blue-300 transition-colors duration-200">Company Profile</Link>
-              <Link to="/employer/create-job" className="hover:text-blue-300 transition-colors duration-200">Job</Link>
+              <Link to="/employer/create-job" className="hover:text-blue-300 transition-colors duration-200">Jobs</Link>
               <Link to="/employer/applications" className="hover:text-blue-300 transition-colors duration-200">Applications</Link>
               <Link to="/employer/search-resume" className="hover:text-blue-300 transition-colors duration-200">Search Resumes</Link>
+              <Link to="/employer/profile" className="hover:text-blue-300 transition-colors duration-200"> Profile</Link>
             </>
           )}
 

@@ -4,6 +4,7 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
+
 const CreateJobs = () => {
   const [jobs, setJobs] = useState([]);
   const [open, setOpen] = useState(false);
@@ -22,7 +23,7 @@ const CreateJobs = () => {
     expiresAt: ''
   });
 
-  const {token} = useAuth(); // 🔥 Replace this with your real token!
+  const {token,profile} = useAuth(); // 🔥 Replace this with your real token!
 
   // Dummy fallback jobs
   const dummyJobs = [
@@ -135,17 +136,22 @@ const CreateJobs = () => {
                 <DeleteIcon />
               </IconButton>
             </div>
-            <h3 className="text-lg text-gray-700 mb-2">{job.companyName}</h3>
+            <h3 className="text-lg text-gray-700 mb-2">{profile.company_name}</h3>
             <p className="text-gray-600 mb-4">{job.description}</p>
+            <p className="text-gray-600 mb-4">Applicants : {job.numberOfApplicants} / {job.maxApplicants}</p>
             <div className="flex flex-wrap gap-2 mb-4">
               {job.skillsRequired?.map((skill, i) => (
                 <Chip key={i} label={skill} size="small" />
               ))}
             </div>
+            <p className="text-gray-600 mb-4">
+  Expires At: {new Date(job.expiresAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+</p>
             <div className="flex justify-between text-sm text-gray-500">
               <span>{job.location}</span>
               <span>{job.salary}</span>
             </div>
+            
           </div>
         ))}
       </div>
@@ -179,11 +185,13 @@ const CreateJobs = () => {
               onChange={(e) => setNewJob({ ...newJob, description: e.target.value })}
             />
             <TextField
-              fullWidth
-              label="Company Name"
-              value={newJob.companyName}
-              onChange={(e) => setNewJob({ ...newJob, companyName: e.target.value })}
-            />
+  fullWidth
+  label="Company Name"
+  value={profile.company_name}
+  InputProps={{
+    readOnly: true,
+  }}
+/>
             <TextField
               fullWidth
               label="Location"
@@ -196,6 +204,20 @@ const CreateJobs = () => {
               value={newJob.salary}
               onChange={(e) => setNewJob({ ...newJob, salary: e.target.value })}
             />
+            <TextField
+              fullWidth
+              label="Max Applicants"
+              value={newJob.maxApplicants}
+              onChange={(e) => setNewJob({ ...newJob, maxApplicants: e.target.value })}
+            />
+            <TextField
+  fullWidth
+  label="Expires At"
+  type="date"
+  InputLabelProps={{ shrink: true }}
+  value={newJob.expiresAt ? newJob.expiresAt.split('T')[0] : ''} // Only take '2025-08-01' part
+  onChange={(e) => setNewJob({ ...newJob, expiresAt: e.target.value })}
+/>
           </form>
         </DialogContent>
         <DialogActions>

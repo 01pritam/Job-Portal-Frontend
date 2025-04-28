@@ -14,7 +14,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [completeProfile, setCompleteProfile] = useState(false);  // ✅ Track completeProfile state
   const navigate = useNavigate();
-
+  const [profile ,setProfile]=useState([]);
   useEffect(() => {
     if (token) {
       localStorage.setItem('token', token);
@@ -41,6 +41,7 @@ export const AuthProvider = ({ children }) => {
           complete_profile); // ✅ Endpoint to check profile completion
         setCompleteProfile(response.data.profile.
           complete_profile); 
+          setProfile(response.data.profile);
           setUserRole(response.data.user.role);// ✅ Update completeProfile state
   
       } catch (error) {
@@ -124,18 +125,22 @@ export const AuthProvider = ({ children }) => {
     }
   }, [navigate, checkProfileCompletion, completeProfile]);
   
-  // Log token whenever it changes
   useEffect(() => {
-    console.log("Updated Token: ", token);
-    checkProfileCompletion();
-    console.log("completeProfile ",completeProfile);
-    if (!completeProfile) {
-      navigate(`/${userRole}/profile`); 
+    if (token && userRole) {
+      console.log("Updated Token: ", token);
+      checkProfileCompletion();
+      console.log("completeProfile ", completeProfile);
+  
+      if (!completeProfile) {
+        navigate(`/${userRole}/profile`);
+      }
     }
-  }, [token]);
-
+  }, [token, userRole]);
+  
   useEffect(() => {
-      navigate(`/`); 
+    if (completeProfile) {
+      navigate(`/`);
+    }
   }, [completeProfile]);
 
 
@@ -196,6 +201,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     token,
+    profile,
     userRole,
     loading,
     completeProfile,
