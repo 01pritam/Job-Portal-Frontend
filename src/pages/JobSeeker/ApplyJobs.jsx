@@ -1,12 +1,15 @@
-// src/App.jsx
-import React from 'react';
-import { 
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import {
+  Dialog, DialogTitle, DialogContent, DialogActions,
   Button,
   IconButton, 
   Chip,
-  Menu,
-  MenuItem,
-  Badge
+  Badge,
+  CircularProgress,
+  Snackbar,
+  Alert,
+  TextField
 } from '@mui/material';
 import {
   KeyboardArrowDown as KeyboardArrowDownIcon,
@@ -16,331 +19,568 @@ import {
   AccessTime as AccessTimeIcon,
   Visibility as VisibilityIcon,
   FilterList as FilterListIcon,
-  Check as CheckIcon
+  Check as CheckIcon,
+  LocationOn as LocationIcon,
+  Work as WorkIcon,
+  Category as CategoryIcon
 } from '@mui/icons-material';
+import { useAuth } from '../../context/AuthContext';
 
-function App() {
-  const [anchorEl, setAnchorEl] = React.useState(null);
+const ApplyJobs = () => {
+  const { token } = useAuth();
+  const [jobs, setJobs] = useState([]);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [openDialog, setOpenDialog] = useState(false);
+  const [uploadResume, setUploadResume] = useState(null);
+  const [coverLetter, setCoverLetter] = useState('');
+  const [filters, setFilters] = useState({
+    location: '',
+    workType: '',
+    category: '',
+    salary: ''
+  });
+
+  // States for Job Agent management
+  const [agents, setAgents] = useState([]);
+  const [agentForm, setAgentForm] = useState({
+    keywords: '',
+    location: '',
+    salaryMin: '',
+    salaryMax: '',
+    jobType: '',
+    workType: '',
+    skills: '',
+    email: ''
+  });
+  const [editingAgentId, setEditingAgentId] = useState(null);
+  const [agentError, setAgentError] = useState('');
+  const [agentSuccess, setAgentSuccess] = useState('');
+
+  const fetchJobs = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get('https://jobbackend-kotd.onrender.com/api/job/jobs', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setJobs(response.data);
+      if (response.data.length > 0) {
+        setSelectedJob(response.data[0]);
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Failed to fetch jobs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAgents = async () => {
+    try {
+      const res = await axios.get('https://jobbackend-kotd.onrender.com/api/agent/agents', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAgents(res.data);
+    } catch (err) {
+      console.error(err);
+      setAgentError('Failed to fetch agents');
+    }
+  };
+
+  useEffect(() => {
+    fetchJobs();
+    fetchAgents();
+  }, []);
+
+  const handleJobClick = (job) => {
+    setSelectedJob(job);
+  };
+
+  // Both Quick Apply buttons now open the dialog.
+  const handleJobClickQuickApply = (job) => {
+    setSelectedJob(job);
+    setOpenDialog(true);
+  };
+
+  // Job Agent handlers
+  const handleAgentInputChange = (e) => {
+    const { name, value } = e.target;
+    setAgentForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleAgentSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingAgentId) {
+        await axios.put(`https://jobbackend-kotd.onrender.com/api/agent/edit/${editingAgentId}`, agentForm, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setAgentSuccess('Agent updated successfully!');
+      } else {
+        await axios.post(`https://jobbackend-kotd.onrender.com/api/agent/add`, agentForm, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setAgentSuccess('Agent added successfully!');
+      }
+      setAgentForm({
+        keywords: '',
+        location: '',
+        salaryMin: '',
+        salaryMax: '',
+        jobType: '',
+        workType: '',
+        skills: '',
+        email: ''
+      });
+      setEditingAgentId(null);
+      fetchAgents();
+    } catch (err) {
+      console.error(err);
+      setAgentError('Failed to submit agent');
+    }
+  };
+
+  const handleAgentEdit = (agent) => {
+    setEditingAgentId(agent._id);
+    setAgentForm({
+      keywords: agent.keywords ? agent.keywords.join(', ') : '',
+      location: agent.location || '',
+      salaryMin: agent.salaryMin || '',
+      salaryMax: agent.salaryMax || '',
+      jobType: agent.jobType || '',
+      workType: agent.workType || '',
+      skills: agent.skills ? agent.skills.join(', ') : '',
+      email: agent.email || ''
+    });
+  };
+
+  const handleAgentDelete = async (agentId) => {
+    try {
+      await axios.delete(`https://jobbackend-kotd.onrender.com/api/agent/delete/${agentId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAgentSuccess('Agent deleted successfully!');
+      fetchAgents();
+    } catch (err) {
+      console.error(err);
+      setAgentError('Failed to delete agent');
+    }
+  };
+
+  const handleSubmitApplication = async () => {
+    try {
+      const formData = new FormData();
+      formData.append('resume', uploadResume);
+      formData.append('coverLetter', coverLetter);
   
-  const handleClick = (event) => {
-    setAnchorEl(event.currentTarget);
+      await axios.post(`https://jobbackend-kotd.onrender.com/api/job/jobs/${selectedJob._id}/apply`, formData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+  
+      setOpenDialog(false);
+      setError('Application submitted successfully!');
+      setUploadResume(null);
+      setCoverLetter('');
+    } catch (err) {
+      console.error(err);
+      setError('Failed to submit application');
+    }
   };
 
-  const handleClose = () => {
-    setAnchorEl(null);
+  const handleAgentActivate = async (agentId) => {
+    try {
+      await axios.get(`https://jobbackend-kotd.onrender.com/api/agent`, { active: true }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAgentSuccess('Agent activated successfully!');
+      fetchAgents();
+    } catch (err) {
+      console.error(err);
+      setAgentError('Failed to activate agent');
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <CircularProgress />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-screen-xl mx-auto p-4 bg-gray-50 min-h-screen">
-      {/* Filter Row */}
-      <div className="flex flex-wrap gap-2 mb-4 items-center">
+      {/* Job Listing Section */}
+      <div className="flex flex-wrap gap-3 mb-6 items-center bg-white p-4 rounded-lg shadow">
         <Button 
           variant="contained" 
-          color="primary" 
-          className="min-w-[100px]" 
+          color="primary"
           endIcon={<KeyboardArrowDownIcon />}
         >
-          Jobs
+          All Jobs
         </Button>
         
         <Button 
-          variant="outlined" 
-          color="inherit" 
-          className="bg-white"
-        >
-          Salary (High to Low)
-        </Button>
-        
-        <Button 
-          variant="outlined" 
-          color="inherit" 
-          className="bg-white"
+          variant="outlined"
           startIcon={<FilterListIcon />}
+          className="bg-white"
         >
-          <Badge badgeContent={4} color="primary">
+          <Badge badgeContent={Object.keys(filters).filter(k => filters[k]).length} color="primary">
             Filters
           </Badge>
         </Button>
         
         <Button 
-          variant="outlined" 
-          color="inherit" 
+          variant="outlined"
+          startIcon={<LocationIcon />}
           className="bg-white"
-          endIcon={<KeyboardArrowDownIcon />}
         >
           Location
         </Button>
         
         <Button 
-          variant="outlined" 
-          color="inherit" 
+          variant="outlined"
+          startIcon={<WorkIcon />}
           className="bg-white"
-          endIcon={<KeyboardArrowDownIcon />}
         >
           Work Type
         </Button>
         
         <Button 
           variant="outlined"
-          color="inherit" 
+          startIcon={<CategoryIcon />}
           className="bg-white"
-          endIcon={<KeyboardArrowDownIcon />}
-        >
-          <Badge badgeContent={1} color="primary">
-            User Type
-          </Badge>
-        </Button>
-        
-        <Button 
-          variant="outlined" 
-          color="inherit" 
-          className="bg-white"
-          endIcon={<KeyboardArrowDownIcon />}
-        >
-          <Badge badgeContent={1} color="primary">
-            Domain
-          </Badge>
-        </Button>
-        
-        <Button 
-          variant="outlined" 
-          color="inherit" 
-          className="bg-white"
-          endIcon={<KeyboardArrowDownIcon />}
         >
           Category
         </Button>
         
-        <div className="flex-grow"></div>
+        <div className="flex-grow" />
         
         <Button 
-          variant="outlined" 
-          color="success" 
-          startIcon={<CheckIcon />}
-          className="bg-white"
+          variant="contained" 
+          color="primary"
+          onClick={() => handleJobClickQuickApply(selectedJob)}
         >
           Quick Apply
         </Button>
       </div>
 
-      {/* Content Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left Column - Job Cards */}
         <div className="md:col-span-1 space-y-4">
-          {/* Job Card 1 */}
-          <div className="bg-white p-4 rounded shadow relative">
-            <div className="absolute left-0 top-0 w-1 h-full bg-blue-500"></div>
-            <div className="flex gap-4">
-              <div className="w-12 h-12 bg-black flex items-center justify-center text-white text-xs">
-                <img src="/api/placeholder/48/48" alt="Blitz Tech" className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-grow">
-                <div className="text-xs text-gray-500 mb-1">Job</div>
-                <h3 className="text-blue-500 font-semibold">Recruitment & Talent Acquisition Associate</h3>
-                <div className="text-gray-700">Blitz Tech Solutions</div>
-                <div className="flex items-center gap-1 mt-2 text-gray-600 text-sm">
-                  <PersonIcon fontSize="small" />
-                  <span>4,448 Applied</span>
-                  <AccessTimeIcon fontSize="small" className="ml-2" />
-                  <span>5 days left</span>
+          {jobs.map((job) => (
+            <div 
+              key={job._id}
+              className={`bg-white p-4 rounded-lg shadow-sm cursor-pointer transition-all hover:shadow-md
+                ${selectedJob?._id === job._id ? 'border-l-4 border-blue-500' : ''}`}
+              onClick={() => handleJobClick(job)}
+            >
+              <div className="flex gap-4">
+                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                  {job.companyLogo ? (
+                    <img src={job.companyLogo} alt={job.company} className="w-10 h-10 object-contain" />
+                  ) : (
+                    <WorkIcon className="text-gray-400" />
+                  )}
                 </div>
-                <div className="mt-2">
-                  <Button variant="outlined" size="small" className="text-gray-500 rounded-full">
-                    All
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Job Card 2 */}
-          <div className="bg-white p-4 rounded shadow">
-            <div className="flex gap-4">
-              <div className="w-12 h-12 bg-black flex items-center justify-center text-white text-xs">
-                <img src="/api/placeholder/48/48" alt="Blitz Tech" className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-grow">
-                <div className="text-xs text-gray-500 mb-1">Job</div>
-                <h3 className="text-gray-800 font-semibold">Finance & Accounts Executive</h3>
-                <div className="text-gray-700">Blitz Tech Solutions</div>
-                <div className="flex items-center gap-1 mt-2 text-gray-600 text-sm">
-                  <PersonIcon fontSize="small" />
-                  <span>1,203 Applied</span>
-                  <AccessTimeIcon fontSize="small" className="ml-2" />
-                  <span>2 days left</span>
-                </div>
-                <div className="mt-2">
-                  <Button variant="outlined" size="small" className="text-gray-500 rounded-full">
-                    All
-                  </Button>
+                <div className="flex-grow">
+                  <h3 className="font-semibold text-gray-900">{job.title}</h3>
+                  <p className="text-gray-600">{job.company}</p>
+                  <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <LocationIcon fontSize="small" />
+                      {job.location}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <AccessTimeIcon fontSize="small" />
+                      {job.deadline}
+                    </span>
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    {job.tags?.map((tag, index) => (
+                      <Chip 
+                        key={index}
+                        label={tag}
+                        size="small"
+                        className="bg-gray-100"
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Job Card 3 */}
-          <div className="bg-white p-4 rounded shadow">
-            <div className="flex gap-4">
-              <div className="w-12 h-12 bg-gray-100 flex items-center justify-center text-gray-400">
-                <img src="/api/placeholder/48/48" alt="Neelam" className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-grow">
-                <div className="text-xs text-gray-500 mb-1">Job</div>
-                <h3 className="text-gray-800 font-semibold">Customer Service Representative</h3>
-                <div className="text-gray-700">Neelam</div>
-                <div className="flex items-center gap-1 mt-2 text-gray-600 text-sm">
-                  <PersonIcon fontSize="small" />
-                  <span>446 Applied</span>
-                  <AccessTimeIcon fontSize="small" className="ml-2" />
-                  <span>8 months left</span>
-                </div>
-                <div className="mt-2">
-                  <Button variant="outlined" size="small" className="text-gray-500 rounded-full">
-                    All
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Job Card 4 */}
-          <div className="bg-white p-4 rounded shadow">
-            <div className="flex gap-4">
-              <div className="w-12 h-12 bg-white border flex items-center justify-center">
-                <img src="/api/placeholder/48/48" alt="SIP Check" className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-grow">
-                <div className="text-xs text-gray-500 mb-1">Job</div>
-                <h3 className="text-gray-800 font-semibold">Back End Developer</h3>
-                <div className="text-gray-700">SIP Check</div>
-                <div className="flex items-center gap-1 mt-2 text-gray-600 text-sm">
-                  <PersonIcon fontSize="small" />
-                  <span>2,036 Applied</span>
-                  <AccessTimeIcon fontSize="small" className="ml-2" />
-                  <span>5 days left</span>
-                </div>
-                <div className="mt-2 flex gap-2 flex-wrap">
-                  <Button variant="outlined" size="small" className="text-gray-500 rounded-full">
-                    Engineering Students
-                  </Button>
-                  <Button variant="outlined" size="small" className="text-gray-500 rounded-full">
-                    MBA Students
-                  </Button>
-                  <span className="text-gray-500 text-sm flex items-center">+2</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Job Card 5 */}
-          <div className="bg-white p-4 rounded shadow">
-            <div className="flex gap-4">
-              <div className="w-12 h-12 bg-white border flex items-center justify-center">
-                <img src="/api/placeholder/48/48" alt="SIP Check" className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-grow">
-                <div className="text-xs text-gray-500 mb-1">Job</div>
-                <h3 className="text-gray-800 font-semibold">Front End Developer</h3>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
 
-        {/* Right Column - Job Details */}
-        <div className="md:col-span-2 space-y-4">
-          {/* Job Header */}
-          <div className="bg-white p-6 rounded shadow">
-            <div className="flex gap-6">
-              <div className="w-16 h-16 bg-black flex items-center justify-center text-white">
-                <img src="/api/placeholder/64/64" alt="Blitz Tech" className="w-full h-full object-cover" />
+        {selectedJob && (
+          <div className="md:col-span-2 space-y-4">
+            <div className="bg-white p-6 rounded-lg shadow-sm">
+              <div className="flex gap-6 items-start">
+                <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
+                  {selectedJob.companyLogo ? (
+                    <img 
+                      src={selectedJob.companyLogo} 
+                      alt={selectedJob.company} 
+                      className="w-14 h-14 object-contain"
+                    />
+                  ) : (
+                    <WorkIcon className="text-gray-400 text-3xl" />
+                  )}
+                </div>
+                <div className="flex-grow">
+                  <h2 className="text-2xl font-semibold text-gray-900">
+                    {selectedJob.title}
+                  </h2>
+                  <p className="text-lg text-gray-600">{selectedJob.company}</p>
+                  <div className="flex items-center gap-4 mt-2 text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <LocationIcon />
+                      {selectedJob.location}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <WorkIcon />
+                      {selectedJob.type}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <EventIcon />
+                      Posted {selectedJob.postedDate}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <IconButton>
+                    <FavoriteIcon />
+                  </IconButton>
+                  <Button 
+                    variant="contained" 
+                    color="primary"
+                    onClick={() => handleJobClickQuickApply(selectedJob)}
+                  >
+                    Quick Apply
+                  </Button>
+                </div>
               </div>
-              <div className="flex-grow">
-                <h2 className="text-2xl font-semibold text-gray-800">Recruitment & Talent Acquisition Associate</h2>
-                <div className="text-lg">Blitz Tech Solutions</div>
-                <div className="text-gray-600 mt-2 flex items-center">
-                  <EventIcon fontSize="small" className="mr-1" />
-                  <span>Updated On: Apr 16, 2025</span>
+
+              <div className="grid grid-cols-3 gap-4 mt-6 p-4 bg-gray-50 rounded-lg">
+                <div className="text-center">
+                  <p className="text-gray-500">Salary Range</p>
+                  <p className="text-xl font-semibold mt-1">{selectedJob.salary}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-gray-500">Experience</p>
+                  <p className="text-xl font-semibold mt-1">{selectedJob.experience}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-gray-500">Applications</p>
+                  <p className="text-xl font-semibold mt-1">{selectedJob.applications}</p>
                 </div>
               </div>
             </div>
-            <div className="flex justify-between mt-6">
-              <div className="flex gap-2">
-                <IconButton>
-                  <FavoriteIcon />
-                </IconButton>
-                <IconButton>
-                  <EventIcon />
-                </IconButton>
-              </div>
-              <Button 
-                variant="contained" 
-                color="primary" 
-                className="px-8"
-              >
-                Quick Apply
-              </Button>
-            </div>
-          </div>
 
-          {/* Job Stats */}
-          <div className="bg-white p-6 rounded shadow flex justify-between">
-            <div className="flex items-center">
-              <PersonIcon className="text-gray-500 mr-3" />
-              <div>
-                <div className="text-gray-500">Applied</div>
-                <div className="text-xl font-semibold">4,448</div>
+            <div className="bg-white p-6 rounded-lg shadow-sm">
+              <h3 className="text-xl font-semibold mb-4">Job Description</h3>
+              <div className="prose max-w-none">
+                {selectedJob.description}
               </div>
             </div>
-            <div className="flex items-center">
-              <AccessTimeIcon className="text-gray-500 mr-3" />
-              <div>
-                <div className="text-gray-500">Application Deadline</div>
-                <div className="text-xl font-semibold">5 days left</div>
-              </div>
-            </div>
-            <div className="flex items-center">
-              <VisibilityIcon className="text-gray-500 mr-3" />
-              <div>
-                <div className="text-gray-500">Impressions</div>
-                <div className="text-xl font-semibold">83,822</div>
-              </div>
-            </div>
-          </div>
 
-          {/* Eligibility */}
-          <div className="bg-white p-6 rounded shadow">
-            <div className="border-l-4 border-blue-500 pl-4">
-              <h3 className="text-xl font-semibold">Eligibility</h3>
-            </div>
-            <div className="mt-4 flex items-center">
-              <PersonIcon className="text-gray-500 mr-2" />
-              <span>Everyone can apply</span>
-            </div>
-          </div>
-
-          {/* Job Description */}
-          <div className="bg-white p-6 rounded shadow">
-            <div className="border-l-4 border-blue-500 pl-4">
-              <h3 className="text-xl font-semibold">Job Description</h3>
-            </div>
-            <div className="mt-4">
-              <h4 className="font-semibold">Overview:</h4>
-              <p className="mt-2">
-                We are looking for a <span className="italic">Junior HR Recruiter</span> who is enthusiastic about helping people find the right job opportunities. This role is ideal for someone who is just starting out in the recruitment space and wants to grow their career by learning the end-to-end hiring process in a dynamic and supportive environment.
-              </p>
-              
-              <h4 className="font-semibold mt-4">Responsibilities:</h4>
-              <ul className="list-disc pl-6 mt-2 space-y-2">
-                <li>Assist in sourcing candidates through job portals, social media, and referrals.</li>
-                <li>Screen resumes and conduct initial telephonic interactions to assess candidate fit.</li>
-                <li>Coordinate interviews and follow-ups between candidates and hiring managers.</li>
+            <div className="bg-white p-6 rounded-lg shadow-sm">
+              <h3 className="text-xl font-semibold mb-4">Requirements</h3>
+              <ul className="list-disc pl-5 space-y-2">
+                {selectedJob.requirements?.map((req, index) => (
+                  <li key={index} className="text-gray-700">{req}</li>
+                ))}
               </ul>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Job Search Agent Management Section */}
+      <div className="bg-white p-6 rounded-lg shadow-sm mt-10">
+        <h2 className="text-2xl font-semibold mb-4">Job Search Agents</h2>
+        {/* Agent Form */}
+        <form onSubmit={handleAgentSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <TextField
+            label="Keywords (comma separated)"
+            name="keywords"
+            value={agentForm.keywords}
+            onChange={handleAgentInputChange}
+            fullWidth
+          />
+          <TextField
+            label="Location"
+            name="location"
+            value={agentForm.location}
+            onChange={handleAgentInputChange}
+            fullWidth
+          />
+          <TextField
+            label="Salary Min"
+            name="salaryMin"
+            type="number"
+            value={agentForm.salaryMin}
+            onChange={handleAgentInputChange}
+            fullWidth
+          />
+          <TextField
+            label="Salary Max"
+            name="salaryMax"
+            type="number"
+            value={agentForm.salaryMax}
+            onChange={handleAgentInputChange}
+            fullWidth
+          />
+          <TextField
+            label="Job Type"
+            name="jobType"
+            value={agentForm.jobType}
+            onChange={handleAgentInputChange}
+            fullWidth
+          />
+          <TextField
+            label="Work Type"
+            name="workType"
+            value={agentForm.workType}
+            onChange={handleAgentInputChange}
+            fullWidth
+          />
+          <TextField
+            label="Skills (comma separated)"
+            name="skills"
+            value={agentForm.skills}
+            onChange={handleAgentInputChange}
+            fullWidth
+          />
+          <TextField
+            label="Email"
+            name="email"
+            value={agentForm.email}
+            onChange={handleAgentInputChange}
+            fullWidth
+          />
+          <div className="md:col-span-2 flex gap-4">
+            <Button type="submit" variant="contained" color="primary">
+              {editingAgentId ? 'Update Agent' : 'Add Agent'}
+            </Button>
+            {editingAgentId && (
+              <Button
+                variant="outlined"
+                color="secondary"
+                onClick={() => {
+                  setEditingAgentId(null);
+                  setAgentForm({
+                    keywords: '',
+                    location: '',
+                    salaryMin: '',
+                    salaryMax: '',
+                    jobType: '',
+                    workType: '',
+                    skills: '',
+                    email: ''
+                  });
+                }}
+              >
+                Cancel
+              </Button>
+            )}
+          </div>
+        </form>
+        
+        {/* List of Agents */}
+        <div className="space-y-4">
+          {agents.map((agent) => (
+            <div key={agent._id} className="border p-4 rounded-md flex justify-between items-center">
+              <div>
+                <p className="font-semibold">
+                  Keywords: {agent.keywords && agent.keywords.join(', ')}
+                </p>
+                <p>Location: {agent.location}</p>
+                <p>Salary Range: {agent.salaryMin} - {agent.salaryMax}</p>
+                <p>Job Type: {agent.jobType}</p>
+                <p>Work Type: {agent.workType}</p>
+                <p>Skills: {agent.skills && agent.skills.join(', ')}</p>
+                <p>Email: {agent.email}</p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button variant="outlined" size="small" onClick={() => handleAgentEdit(agent)}>
+                  Edit
+                </Button>
+                <Button variant="outlined" color="success" size="small" onClick={() => handleAgentActivate(agent._id)}>
+                  Activate
+                </Button>
+                <Button variant="outlined" color="error" size="small" onClick={() => handleAgentDelete(agent._id)}>
+                  Delete
+                </Button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
+
+      <Snackbar 
+        open={!!error} 
+        autoHideDuration={6000} 
+        onClose={() => setError('')}
+      >
+        <Alert severity={error.includes('success') ? 'success' : 'error'} onClose={() => setError('')}>
+          {error}
+        </Alert>
+      </Snackbar>
+
+      <Snackbar 
+        open={!!agentError || !!agentSuccess} 
+        autoHideDuration={6000} 
+        onClose={() => {
+          setAgentError('');
+          setAgentSuccess('');
+        }}
+      >
+        <Alert 
+          severity={agentError ? 'error' : 'success'} 
+          onClose={() => {
+            setAgentError('');
+            setAgentSuccess('');
+          }}
+        >
+          {agentError || agentSuccess}
+        </Alert>
+      </Snackbar>
+
+      {/* Quick Apply Dialog */}
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Apply for {selectedJob?.title}</DialogTitle>
+        <DialogContent className="space-y-4">
+          <input 
+            type="file"
+            accept="application/pdf"
+            onChange={(e) => setUploadResume(e.target.files[0])}
+          />
+          <TextField
+            label="Cover Letter"
+            multiline
+            rows={4}
+            fullWidth
+            value={coverLetter}
+            onChange={(e) => setCoverLetter(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={handleSubmitApplication} 
+            variant="contained"
+            disabled={!uploadResume}
+          >
+            Submit Application
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
-}
+};
 
-export default App;
+export default ApplyJobs;

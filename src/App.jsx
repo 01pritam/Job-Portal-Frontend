@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import AdminNavbar from './pages/Admin/AdminNavbar';
 import Home from './components/Home';
 import Jobs from './components/Jobs';
 import { useAuth } from './context/AuthContext';
@@ -30,6 +31,7 @@ import Login from './components/Login';
 import SignUp from './components/SignUp';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
+import ApplyJobs from './pages/JobSeeker/ApplyJobs';
 
 const App = () => {
   const { userRole,token } = useAuth();
@@ -48,7 +50,7 @@ const App = () => {
 
   return (
     <>
-      <Navbar />
+      {userRole === 'admin' ? <AdminNavbar /> : <Navbar />}
       <div className="mt-20 ">
         <Routes>
 
@@ -62,10 +64,10 @@ const App = () => {
           <Route path="/reset-password/:token" element={<ResetPassword />} />
 
           {/* JobSeeker Routes */}
-          <Route path="/jobseeker/profile" element={token && userRole === 'job_seeker' ? <Profile /> : <Navigate to="/login" replace />} />
-          <Route path="/jobseeker/jobs" element={token && userRole === 'job_seeker' ? <Jobs /> : <Navigate to="/login" replace />} />
-          <Route path="/jobseeker/applications-status" element={token && userRole === 'job_seeker' ? <ApplicationsStatus /> : <Navigate to="/login" replace />} />
-          <Route path="/jobseeker/resume" element={token && userRole === 'job_seeker' ? <Resume /> : <Navigate to="/login" replace />} />
+          <Route path="/job_seeker/profile" element={token && userRole === 'job_seeker' ? <Profile /> : <Navigate to="/login" replace />} />
+          <Route path="/job_seeker/jobs" element={token && userRole === 'job_seeker' ? <ApplyJobs /> : <Navigate to="/login" replace />} />
+          <Route path="/job_seeker/applications-status" element={token && userRole === 'job_seeker' ? <ApplicationsStatus /> : <Navigate to="/login" replace />} />
+          <Route path="/job_seeker/resume" element={token && userRole === 'job_seeker' ? <Resume /> : <Navigate to="/login" replace />} />
 
           {/* Employer Routes */}
           console.log("Token:", token);
@@ -81,8 +83,9 @@ console.log("UserRole:", userRole);
     )
   }
 />
+<Route path="/employer/applications/:jobId" element={<Applications />} />
           <Route path="/employer/create-job" element={token && userRole === 'employer' ? <CreateJob /> : <Navigate to="/login" replace />} />
-          <Route path="/employer/applications" element={token && userRole === 'employer' ? <Applications /> : <Navigate to="/login" replace />} />
+          {/* <Route path="/employer/applications" element={token && userRole === 'employer' ? <Applications /> : <Navigate to="/login" replace />} /> */}
           <Route path="/employer/search-resume" element={token && userRole === 'employer' ? <SearchResume /> : <Navigate to="/login" replace />} />
 
           {/* Admin Routes */}

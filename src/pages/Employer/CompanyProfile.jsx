@@ -1,263 +1,285 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
-  Box, 
-  Container, 
-  Typography, 
-  Avatar, 
-  Button, 
-  Chip, 
-  Grid, 
-  Paper, 
-  Divider, 
-  IconButton, 
-  TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  MenuItem,
-  Select,
-  FormControl,
-  InputLabel,
-  Alert
+  Box, Container, Typography, Avatar, Button, Chip, Grid, Paper, IconButton, TextField,
+  FormControl, InputLabel, MenuItem, Select, Alert, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import { 
-  Edit as EditIcon, 
-  Business as BusinessIcon, 
-  Language as LanguageIcon, 
-  Verified as VerifiedIcon, 
-  Star as StarIcon, 
-  Upload as UploadIcon, 
-  Save as SaveIcon 
+  Edit as EditIcon, Business as BusinessIcon, Star as StarIcon, Upload as UploadIcon, Save as SaveIcon 
 } from '@mui/icons-material';
 import axios from 'axios';
+import { useAuth } from '../../context/AuthContext';
 
 const CompanyProfile = ({ employerId, isEditable = true }) => {
-  const [employer, setEmployer] = useState({
-    firstName: "pr",
-    lastName: "kr",
-    company_name: "Dummy Company",
-    company_url: "https://dummycompany.com",
-    logo: "https://dummycompany.com/logo.png", // Changed to logo
-    profile: "We are a dummy company providing dummy services.",
-    phone_number: "39202",
-    membership_package: "premium",
-    featured: true,
-    complete_profile: true
-  });
-
-  const [loading, setLoading] = useState(false);
+  const { token, profile } = useAuth();
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editMode, setEditMode] = useState(false);
-  const [openMembershipDialog, setOpenMembershipDialog] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [success, setSuccess] = useState('');
+  const [membershipDialogOpen, setMembershipDialogOpen] = useState(false);
+  const [selectedMembership, setSelectedMembership] = useState('');
+  const [membershipAmount, setMembershipAmount] = useState(0);
 
   const [formData, setFormData] = useState({
-    company_name: 'Dummy Company',
-    company_url: 'https://dummycompany.com',
-    logo: 'https://dummycompany.com/logo.png', // Changed to logo
-    profile: 'We are a dummy company providing dummy services.',
-    membership_package: 'premium',
-    featured: true,
-    complete_profile: true
+    user_id: '',
+    company_name: '',
+    company_url: '',
+    logo_url: '',
+    phone_number: '',
+    membership_package: 'free',
+    featured: false,
+    complete_profile: false,
+    profile: ''
   });
+
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        user_id: profile.user_id || '',
+        company_name: profile.company_name || '',
+        company_url: profile.company_url || '',
+        logo_url: profile.logo_url || '',
+        phone_number: profile.phone_number || '',
+        membership_package: profile.membership_package || 'free',
+        featured: profile.featured || false,
+        complete_profile: profile.complete_profile || false,
+        profile: profile.profile || ''
+      });
+      setLoading(false);
+    }
+  }, [profile]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    if (name === 'membership_package') {
+      setSelectedMembership(value);
+      setMembershipAmount(value === 'premium' ? 5000 : value === 'standard' ? 3000 : 0); // ₹50 or ₹30 (paise)
+      setMembershipDialogOpen(true);
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
-  const handleCheckboxChange = (e) => {
-    const { name, checked } = e.target;
-    setFormData({ ...formData, [name]: checked });
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      try {
+        const base64 = await convertToBase64(file);
+        setFormData(prev => ({ ...prev, logo_url: base64 }));
+      } catch (err) {
+        setError('Failed to process image');
+      }
+    }
+  };
+
+  const convertToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = error => reject(error);
+    });
   };
 
   const handleSave = async () => {
+    setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-  
-      const payload = new FormData();
-  
-      // Append all fields manually into FormData
-      payload.append('company_name', formData.company_name);
-      payload.append('company_url', formData.company_url);
-      payload.append('profile', formData.profile);
-      payload.append('membership_package', formData.membership_package);
-      payload.append('featured', formData.featured);
-      payload.append('complete_profile', formData.complete_profile);
-  
-      if (formData.logo) {
-        payload.append('logo', formData.logo); // Attach logo file
-      }
-  
-      // If you want, uncomment this
-      // payload.append('role', 'Employer');
-  
       const response = await axios.post(
-        `https://jobbackend-kotd.onrender.com/api/profile/saveprofile`,
-        payload,
+        'https://jobbackend-kotd.onrender.com/api/profile/saveprofile',
+        formData,
         {
           headers: {
-            'Authorization': `Bearer ${token}`,
-            // ⚡ Don't set Content-Type manually when sending FormData!
-            // Let browser set it automatically with correct boundary
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
         }
       );
-  
-      setEmployer(response.data);
-      setEditMode(false);
-      setShowSuccess(true);
-  
-      setTimeout(() => setShowSuccess(false), 3000);
+
+      if (response.data) {
+        setSuccess('Profile updated successfully!');
+        setEditMode(false);
+      }
     } catch (err) {
-      console.error(err);
-      setError('Failed to update profile');
+      setError(err.response?.data?.message || 'Failed to update profile');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleLogoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({ ...formData, logo: reader.result }); // Changed to logo
-      };
-      reader.readAsDataURL(file);
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+  
+  const handlePayment = async () => {
+    const res = await loadRazorpayScript();
+  
+    if (!res) {
+      alert('Failed to load Razorpay SDK. Are you online?');
+      return;
     }
+  
+    if (!membershipAmount || membershipAmount <= 0) {
+      alert('Invalid amount. Please select a valid membership.');
+      return;
+    }
+  
+    const options = {
+      key: 'YOUR_RAZORPAY_KEY', // 🔥 Very important: YOUR LIVE KEY or TEST KEY here
+      amount: membershipAmount * 100, // 🔥 Razorpay takes amount in paise (₹1 = 100 paise)
+      currency: 'INR',
+      name: 'Job Portal',
+      description: `${selectedMembership} Membership Payment`,
+      handler: function (response) {
+        console.log('Payment Success:', response);
+        setSuccess('Payment successful!');
+        setFormData(prev => ({ ...prev, membership_package: selectedMembership }));
+        setMembershipDialogOpen(false);
+      },
+      prefill: {
+        name: formData.company_name || 'Your Company Name',
+        email: profile.email || 'test@example.com',
+        contact: formData.phone_number || '9999999999'
+      },
+      theme: {
+        color: '#3399cc'
+      }
+    };
+  
+    const paymentObject = new window.Razorpay(options);
+    paymentObject.open();
   };
 
   if (loading) {
     return (
       <Container>
-        <Typography variant="h5">Loading profile...</Typography>
-      </Container>
-    );
-  }
-
-  if (error) {
-    return (
-      <Container>
-        <Alert severity="error">{error}</Alert>
+        <Typography variant="h5" className="text-center py-8">
+          Loading profile...
+        </Typography>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth="lg">
-      {showSuccess && <Alert severity="success" className="mb-4">Profile updated successfully!</Alert>}
-      
+    <Container maxWidth="lg" className="py-8">
       <Grid container spacing={4}>
-        {/* Left Side: Avatar and Membership Info */}
-        <Grid item xs={12} md={4} className="flex justify-center items-center">
-          <Paper elevation={4} className="p-4 w-full max-w-xs">
-            <Box className="relative">
-              <Avatar 
-                src={editMode ? formData.logo : employer.logo} // Changed to logo
-                alt={formData.company_name} 
-                sx={{ width: 120, height: 120, border: 3, borderColor: 'grey.300' }}
-              >
-                <BusinessIcon fontSize="large" />
-              </Avatar>
-              {editMode && (
-                <Box className="absolute bottom-0 right-0">
-                  <input 
-                    accept="image/*" 
-                    style={{ display: 'none' }} 
-                    id="logo-upload" 
-                    type="file" 
-                    onChange={handleLogoUpload} 
-                  />
-                  <label htmlFor="logo-upload">
-                    <IconButton component="span" color="primary" size="small">
-                      <UploadIcon />
-                    </IconButton>
-                  </label>
-                </Box>
-              )}
-            </Box>
+        {/* Profile Sidebar */}
+        <Grid item xs={12} md={4}>
+          <Paper elevation={3} className="p-6">
+            <Box className="flex flex-col items-center">
+              <div className="relative">
+                <Avatar 
+                  src={formData.logo_url}
+                  alt={formData.company_name}
+                  sx={{ width: 120, height: 120 }}
+                  className="border-4 border-gray-200"
+                >
+                  <BusinessIcon fontSize="large" />
+                </Avatar>
+                {editMode && (
+                  <div className="absolute bottom-0 right-0">
+                    <input
+                      accept="image/*"
+                      type="file"
+                      id="logo-upload"
+                      hidden
+                      onChange={handleLogoUpload}
+                    />
+                    <label htmlFor="logo-upload">
+                      <IconButton component="span" className="bg-white shadow-md" size="small">
+                        <UploadIcon />
+                      </IconButton>
+                    </label>
+                  </div>
+                )}
+              </div>
 
-            <Box className="mt-4 text-center">
-              <Typography variant="h6">{employer.company_name}</Typography>
-              <Chip 
-                label={`Membership: ${employer.membership_package}`} 
-                color={employer.membership_package === 'premium' ? 'primary' : 'default'}
+              <Typography variant="h6" className="mt-4">
+                {formData.company_name}
+              </Typography>
+
+              <Chip
+                label={`${formData.membership_package} Package`}
+                color={formData.membership_package === 'premium' ? 'primary' : 'default'}
                 className="mt-2"
               />
-              {employer.featured && (
-                <Chip 
-                  icon={<StarIcon />} 
-                  label="Featured" 
-                  color="warning" 
-                  className="mt-2" 
+
+              {formData.featured && (
+                <Chip
+                  icon={<StarIcon />}
+                  label="Featured"
+                  color="warning"
+                  className="mt-2"
                 />
               )}
-            </Box>
 
-            {isEditable && !editMode && (
-              <Box className="mt-4 text-center">
-                <Button 
-                  variant="outlined" 
-                  startIcon={<EditIcon />} 
-                  onClick={() => setEditMode(true)} 
-                  size="small"
+              {isEditable && !editMode && (
+                <Button
+                  variant="outlined"
+                  startIcon={<EditIcon />}
+                  onClick={() => setEditMode(true)}
+                  className="mt-4"
                 >
                   Edit Profile
                 </Button>
-              </Box>
-            )}
+              )}
+            </Box>
           </Paper>
         </Grid>
 
-        {/* Right Side: Profile Info */}
+        {/* Profile Details */}
         <Grid item xs={12} md={8}>
-          {editMode ? (
-            <Paper elevation={4} className="p-4">
-              <Typography variant="h5">Edit Profile</Typography>
+          <Paper elevation={3} className="p-6">
+            {editMode ? (
+              <div className="space-y-4">
+                <Typography variant="h6">Edit Company Profile</Typography>
 
-              <TextField
-                fullWidth
-                label="Company Name"
-                name="company_name"
-                value={formData.company_name}
-                onChange={handleInputChange}
-                margin="normal"
-                variant="outlined"
-                required
-              />
+                <TextField
+                  fullWidth
+                  label="Company Name"
+                  name="company_name"
+                  value={formData.company_name}
+                  onChange={handleInputChange}
+                  required
+                />
 
-              <TextField
-                fullWidth
-                label="Company Website"
-                name="company_url"
-                value={formData.company_url}
-                onChange={handleInputChange}
-                margin="normal"
-                variant="outlined"
-                placeholder="https://example.com"
-              />
+                <TextField
+                  fullWidth
+                  label="Phone Number"
+                  name="phone_number"
+                  value={formData.phone_number}
+                  onChange={handleInputChange}
+                />
 
-              <TextField
-                fullWidth
-                label="Company Profile"
-                name="profile"
-                value={formData.profile}
-                onChange={handleInputChange}
-                margin="normal"
-                variant="outlined"
-                multiline
-                rows={6}
-                placeholder="Describe your company, mission, values, and what you're looking for in candidates."
-              />
+                <TextField
+                  fullWidth
+                  label="Company Website"
+                  name="company_url"
+                  value={formData.company_url}
+                  onChange={handleInputChange}
+                />
 
-              <Box className="flex items-center mt-4">
-                <FormControl className="w-48 mr-4">
-                  <InputLabel>Membership</InputLabel>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={6}
+                  label="Company Profile"
+                  name="profile"
+                  value={formData.profile}
+                  onChange={handleInputChange}
+                />
+
+                <FormControl fullWidth>
+                  <InputLabel>Membership Package</InputLabel>
                   <Select
                     name="membership_package"
                     value={formData.membership_package}
                     onChange={handleInputChange}
-                    label="Membership"
+                    label="Membership Package"
                   >
                     <MenuItem value="free">Free</MenuItem>
                     <MenuItem value="standard">Standard</MenuItem>
@@ -265,46 +287,79 @@ const CompanyProfile = ({ employerId, isEditable = true }) => {
                   </Select>
                 </FormControl>
 
-                <Box className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="featured"
-                    name="featured"
-                    checked={formData.featured}
-                    onChange={handleCheckboxChange}
-                    className="mr-2"
-                  />
-                  <label htmlFor="featured">Featured Company</label>
-                </Box>
-              </Box>
-
-              <Box className="mt-6 flex justify-end">
-                <Button 
-                  variant="outlined" 
-                  onClick={() => setEditMode(false)}
-                  className="mr-2"
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  variant="contained" 
-                  color="primary"
-                  startIcon={<SaveIcon />}
-                  onClick={handleSave}
-                >
-                  Save Changes
-                </Button>
-              </Box>
-            </Paper>
-          ) : (
-            <Paper elevation={4} className="p-4">
-              <Typography variant="h6">Company Profile</Typography>
-              {/* <Typography variant="body1" paragraph>{employer.profile}</Typography> */}
-              <Typography variant="body1">Website: <a href={employer.company_url} target="_blank" rel="noopener noreferrer">{employer.company_url}</a></Typography>
-            </Paper>
-          )}
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    variant="outlined"
+                    onClick={() => setEditMode(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<SaveIcon />}
+                    onClick={handleSave}
+                    disabled={loading}
+                  >
+                    {loading ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <Typography variant="h6">Company Profile</Typography>
+                <Typography variant="body1">
+                  {formData.profile || 'No profile information available.'}
+                </Typography>
+                {formData.company_url && (
+                  <Typography variant="body1">
+                    Website: <a href={formData.company_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{formData.company_url}</a>
+                  </Typography>
+                )}
+                {formData.phone_number && (
+                  <Typography variant="body1">
+                    Phone: {formData.phone_number}
+                  </Typography>
+                )}
+              </div>
+            )}
+          </Paper>
         </Grid>
       </Grid>
+
+      {/* Membership Payment Dialog */}
+      <Dialog open={membershipDialogOpen} onClose={() => setMembershipDialogOpen(false)}>
+        <DialogTitle>Upgrade to {selectedMembership} Package</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Pay ₹{membershipAmount / 100} to upgrade to {selectedMembership} membership.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMembershipDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" color="primary" onClick={handlePayment}>
+            Pay Now
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={!!error || !!success}
+        autoHideDuration={6000}
+        onClose={() => {
+          setError(null);
+          setSuccess('');
+        }}
+      >
+        <Alert
+          severity={error ? 'error' : 'success'}
+          onClose={() => {
+            setError(null);
+            setSuccess('');
+          }}
+        >
+          {error || success}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };
