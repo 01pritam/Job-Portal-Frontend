@@ -1,20 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { 
+import {
   Box, Container, Typography, Avatar, Button, Chip, Grid, Paper, IconButton, TextField,
-  FormControl, InputLabel, MenuItem, Select, Alert, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions
+  FormControl, InputLabel, MenuItem, Select, Dialog, DialogTitle, DialogContent, DialogActions,
+  Snackbar, Alert
 } from '@mui/material';
-import { 
-  Edit as EditIcon, Business as BusinessIcon, Star as StarIcon, Upload as UploadIcon, Save as SaveIcon 
+import {
+  Edit as EditIcon, Business as BusinessIcon, Star as StarIcon,
+  Upload as UploadIcon, Save as SaveIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
+import imageCompression from 'browser-image-compression';
 
 const CompanyProfile = ({ employerId, isEditable = true }) => {
   const { token, profile } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
   const [membershipDialogOpen, setMembershipDialogOpen] = useState(false);
   const [selectedMembership, setSelectedMembership] = useState('');
   const [membershipAmount, setMembershipAmount] = useState(0);
@@ -24,16 +27,21 @@ const CompanyProfile = ({ employerId, isEditable = true }) => {
     company_name: '',
     company_url: '',
     logo_url: '',
+    logo_file: null,
     phone_number: '',
     membership_package: 'free',
     featured: false,
     complete_profile: false,
-    profile: ''
+    profile: '',
+    name: '',
+    email: ''
   });
 
   useEffect(() => {
     if (profile) {
-      setFormData({
+      console.log("com ",profile);
+      setFormData(prev => ({
+        ...prev,
         user_id: profile.user_id || '',
         company_name: profile.company_name || '',
         company_url: profile.company_url || '',
@@ -42,8 +50,10 @@ const CompanyProfile = ({ employerId, isEditable = true }) => {
         membership_package: profile.membership_package || 'free',
         featured: profile.featured || false,
         complete_profile: profile.complete_profile || false,
-        profile: profile.profile || ''
-      });
+        profile: profile.profile || '',
+        name: profile.name || '',
+        email: profile.email || ''
+      }));
       setLoading(false);
     }
   }, [profile]);
@@ -51,9 +61,12 @@ const CompanyProfile = ({ employerId, isEditable = true }) => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     if (name === 'membership_package') {
+      const price = value === 'premium' ? 5000 : value === 'standard' ? 3000 : 0;
       setSelectedMembership(value);
-      setMembershipAmount(value === 'premium' ? 5000 : value === 'standard' ? 3000 : 0); // ₹50 or ₹30 (paise)
-      setMembershipDialogOpen(true);
+      setMembershipAmount(price);
+      if (value !== formData.membership_package) {
+        setMembershipDialogOpen(true);
+      }
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -63,38 +76,48 @@ const CompanyProfile = ({ employerId, isEditable = true }) => {
     const file = e.target.files[0];
     if (file) {
       try {
-        const base64 = await convertToBase64(file);
-        setFormData(prev => ({ ...prev, logo_url: base64 }));
-      } catch (err) {
-        setError('Failed to process image');
+        const options = {
+          maxSizeMB: 0.5,
+          maxWidthOrHeight: 500,
+          useWebWorker: true
+        };
+        const compressed = await imageCompression(file, options);
+        const logoPreview = await imageCompression.getDataUrlFromFile(compressed);
+        setFormData(prev => ({
+          ...prev,
+          logo_file: compressed,
+          logo_url: logoPreview
+        }));
+      } catch {
+        setError('Image upload failed');
       }
     }
-  };
-
-  const convertToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = error => reject(error);
-    });
   };
 
   const handleSave = async () => {
     setLoading(true);
     try {
-      const response = await axios.post(
+      const data = new FormData();
+      Object.entries(formData).forEach(([key, value]) => {
+        if (key !== 'logo_url' && key !== 'logo_file') {
+          data.append(key, value);
+        }
+      });
+      if (formData.logo_file) {
+        data.append('logo', formData.logo_file);
+      }
+
+      const res = await axios.post(
         'https://jobbackend-kotd.onrender.com/api/profile/saveprofile',
-        formData,
+        data,
         {
           headers: {
             Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'multipart/form-data'
           }
         }
       );
-
-      if (response.data) {
+      if (res.data) {
         setSuccess('Profile updated successfully!');
         setEditMode(false);
       }
@@ -114,69 +137,47 @@ const CompanyProfile = ({ employerId, isEditable = true }) => {
       document.body.appendChild(script);
     });
   };
-  
+
   const handlePayment = async () => {
     const res = await loadRazorpayScript();
-  
-    if (!res) {
-      alert('Failed to load Razorpay SDK. Are you online?');
-      return;
-    }
-  
-    if (!membershipAmount || membershipAmount <= 0) {
-      alert('Invalid amount. Please select a valid membership.');
-      return;
-    }
-  
+    if (!res) return alert('Razorpay SDK failed to load');
+
     const options = {
-      key: 'YOUR_RAZORPAY_KEY', // 🔥 Very important: YOUR LIVE KEY or TEST KEY here
-      amount: membershipAmount * 100, // 🔥 Razorpay takes amount in paise (₹1 = 100 paise)
+      key: 'YOUR_RAZORPAY_KEY', // Replace with your Razorpay key
+      amount: membershipAmount * 100,
       currency: 'INR',
       name: 'Job Portal',
       description: `${selectedMembership} Membership Payment`,
       handler: function (response) {
-        console.log('Payment Success:', response);
-        setSuccess('Payment successful!');
+        console.log('Payment Successful:', response);
         setFormData(prev => ({ ...prev, membership_package: selectedMembership }));
         setMembershipDialogOpen(false);
+        setSuccess('Payment successful!');
       },
       prefill: {
-        name: formData.company_name || 'Your Company Name',
-        email: profile.email || 'test@example.com',
-        contact: formData.phone_number || '9999999999'
+        name: formData.company_name,
+        email: formData.email,
+        contact: formData.phone_number
       },
       theme: {
         color: '#3399cc'
       }
     };
-  
-    const paymentObject = new window.Razorpay(options);
-    paymentObject.open();
-  };
 
-  if (loading) {
-    return (
-      <Container>
-        <Typography variant="h5" className="text-center py-8">
-          Loading profile...
-        </Typography>
-      </Container>
-    );
-  }
+    new window.Razorpay(options).open();
+  };
 
   return (
     <Container maxWidth="lg" className="py-8">
       <Grid container spacing={4}>
-        {/* Profile Sidebar */}
+        {/* Sidebar */}
         <Grid item xs={12} md={4}>
           <Paper elevation={3} className="p-6">
             <Box className="flex flex-col items-center">
               <div className="relative">
-                <Avatar 
+                <Avatar
                   src={formData.logo_url}
-                  alt={formData.company_name}
                   sx={{ width: 120, height: 120 }}
-                  className="border-4 border-gray-200"
                 >
                   <BusinessIcon fontSize="large" />
                 </Avatar>
@@ -185,11 +186,11 @@ const CompanyProfile = ({ employerId, isEditable = true }) => {
                     <input
                       accept="image/*"
                       type="file"
-                      id="logo-upload"
                       hidden
+                      id="upload-logo"
                       onChange={handleLogoUpload}
                     />
-                    <label htmlFor="logo-upload">
+                    <label htmlFor="upload-logo">
                       <IconButton component="span" className="bg-white shadow-md" size="small">
                         <UploadIcon />
                       </IconButton>
@@ -198,32 +199,15 @@ const CompanyProfile = ({ employerId, isEditable = true }) => {
                 )}
               </div>
 
-              <Typography variant="h6" className="mt-4">
-                {formData.company_name}
-              </Typography>
+              <Typography variant="h6" className="mt-4">{formData.company_name}</Typography>
 
-              <Chip
-                label={`${formData.membership_package} Package`}
-                color={formData.membership_package === 'premium' ? 'primary' : 'default'}
-                className="mt-2"
-              />
-
+              <Chip label={`${formData.membership_package} Package`} color={formData.membership_package === 'premium' ? 'primary' : 'default'} className="mt-2" />
               {formData.featured && (
-                <Chip
-                  icon={<StarIcon />}
-                  label="Featured"
-                  color="warning"
-                  className="mt-2"
-                />
+                <Chip icon={<StarIcon />} label="Featured" color="warning" className="mt-2" />
               )}
 
               {isEditable && !editMode && (
-                <Button
-                  variant="outlined"
-                  startIcon={<EditIcon />}
-                  onClick={() => setEditMode(true)}
-                  className="mt-4"
-                >
+                <Button variant="outlined" startIcon={<EditIcon />} className="mt-4" onClick={() => setEditMode(true)}>
                   Edit Profile
                 </Button>
               )}
@@ -231,47 +215,17 @@ const CompanyProfile = ({ employerId, isEditable = true }) => {
           </Paper>
         </Grid>
 
-        {/* Profile Details */}
+        {/* Profile Form */}
         <Grid item xs={12} md={8}>
           <Paper elevation={3} className="p-6">
             {editMode ? (
               <div className="space-y-4">
                 <Typography variant="h6">Edit Company Profile</Typography>
 
-                <TextField
-                  fullWidth
-                  label="Company Name"
-                  name="company_name"
-                  value={formData.company_name}
-                  onChange={handleInputChange}
-                  required
-                />
-
-                <TextField
-                  fullWidth
-                  label="Phone Number"
-                  name="phone_number"
-                  value={formData.phone_number}
-                  onChange={handleInputChange}
-                />
-
-                <TextField
-                  fullWidth
-                  label="Company Website"
-                  name="company_url"
-                  value={formData.company_url}
-                  onChange={handleInputChange}
-                />
-
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={6}
-                  label="Company Profile"
-                  name="profile"
-                  value={formData.profile}
-                  onChange={handleInputChange}
-                />
+                <TextField fullWidth label="Company Name" name="company_name" value={formData.company_name} onChange={handleInputChange} />
+                <TextField fullWidth label="Phone Number" name="phone_number" value={formData.phone_number} onChange={handleInputChange} />
+                <TextField fullWidth label="Company Website" name="company_url" value={formData.company_url} onChange={handleInputChange} />
+                <TextField fullWidth multiline rows={5} label="Company Profile" name="profile" value={formData.profile} onChange={handleInputChange} />
 
                 <FormControl fullWidth>
                   <InputLabel>Membership Package</InputLabel>
@@ -288,77 +242,43 @@ const CompanyProfile = ({ employerId, isEditable = true }) => {
                 </FormControl>
 
                 <div className="flex justify-end space-x-2 pt-4">
-                  <Button
-                    variant="outlined"
-                    onClick={() => setEditMode(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="contained"
-                    startIcon={<SaveIcon />}
-                    onClick={handleSave}
-                    disabled={loading}
-                  >
-                    {loading ? 'Saving...' : 'Save Changes'}
+                  <Button variant="outlined" onClick={() => setEditMode(false)}>Cancel</Button>
+                  <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} disabled={loading}>
+                    {loading ? 'Saving...' : 'Save'}
                   </Button>
                 </div>
               </div>
             ) : (
               <div className="space-y-4">
                 <Typography variant="h6">Company Profile</Typography>
-                <Typography variant="body1">
-                  {formData.profile || 'No profile information available.'}
-                </Typography>
-                {formData.company_url && (
-                  <Typography variant="body1">
-                    Website: <a href={formData.company_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{formData.company_url}</a>
-                  </Typography>
-                )}
-                {formData.phone_number && (
-                  <Typography variant="body1">
-                    Phone: {formData.phone_number}
-                  </Typography>
-                )}
+                <Typography>{formData.profile || 'No profile provided.'}</Typography>
+                {formData.company_url && <Typography>Website: <a href={formData.company_url} target="_blank" rel="noopener noreferrer">{formData.company_url}</a></Typography>}
+                {formData.phone_number && <Typography>Phone: {formData.phone_number}</Typography>}
               </div>
             )}
           </Paper>
         </Grid>
       </Grid>
 
-      {/* Membership Payment Dialog */}
+      {/* Membership Dialog */}
       <Dialog open={membershipDialogOpen} onClose={() => setMembershipDialogOpen(false)}>
-        <DialogTitle>Upgrade to {selectedMembership} Package</DialogTitle>
+        <DialogTitle>Confirm Membership Upgrade</DialogTitle>
         <DialogContent>
-          <Typography>
-            Pay ₹{membershipAmount / 100} to upgrade to {selectedMembership} membership.
-          </Typography>
+          <Typography>You are about to switch to the <strong>{selectedMembership}</strong> package.</Typography>
+          <Typography>Amount: ₹{membershipAmount / 100}</Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setMembershipDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" color="primary" onClick={handlePayment}>
-            Pay Now
-          </Button>
+          <Button onClick={handlePayment} variant="contained">Pay Now</Button>
         </DialogActions>
       </Dialog>
 
-      <Snackbar
-        open={!!error || !!success}
-        autoHideDuration={6000}
-        onClose={() => {
-          setError(null);
-          setSuccess('');
-        }}
-      >
-        <Alert
-          severity={error ? 'error' : 'success'}
-          onClose={() => {
-            setError(null);
-            setSuccess('');
-          }}
-        >
-          {error || success}
-        </Alert>
+      {/* Feedback Alerts */}
+      <Snackbar open={!!success} autoHideDuration={4000} onClose={() => setSuccess('')}>
+        <Alert severity="success">{success}</Alert>
+      </Snackbar>
+      <Snackbar open={!!error} autoHideDuration={4000} onClose={() => setError('')}>
+        <Alert severity="error">{error}</Alert>
       </Snackbar>
     </Container>
   );
