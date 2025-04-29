@@ -82,17 +82,17 @@ const ApplicationsStatus = () => {
                             key={app._id} 
                             className="grid grid-cols-12 gap-2 px-4 py-6 border-t border-gray-200 items-center hover:bg-gray-50"
                         >
-                            <div className="col-span-2 font-medium truncate" title={app.jobId.companyName}>
-                                {app.jobId.companyName}
+                            <div className="col-span-2 font-medium truncate" title={app?.jobId?.companyName}>
+                                {app?.jobId?.companyName}
                             </div>
-                            <div className="col-span-3 truncate" title={app.jobId.title}>
-                                {app.jobId.title}
+                            <div className="col-span-3 truncate" title={app?.jobId?.title}>
+                                {app?.jobId?.title}
                             </div>
                             <div className="col-span-2 text-gray-600">
                                 {new Date(app.createdAt).toLocaleDateString()}
                             </div>
                             <div className="col-span-1 text-gray-600">
-                                {app.jobId.location}
+                                {app?.jobId?.location}
                             </div>
                             <div className="col-span-2 text-gray-600">
                                 {getStatus(app)}
